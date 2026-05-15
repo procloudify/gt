@@ -12,16 +12,19 @@ function Write-Info($msg) { Write-Host "  $([char]0x2192) $msg" -ForegroundColor
 function Write-Warn($msg) { Write-Host "  ! $msg" -ForegroundColor Yellow }
 function Write-Fail($msg) { Write-Host "  $([char]0x2717) $msg" -ForegroundColor Red; exit 1 }
 
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 Write-Host ""
-Write-Host "   ______" -ForegroundColor Cyan
-Write-Host "  / ___  |__" -ForegroundColor Cyan
-Write-Host " | |  |_|  |" -ForegroundColor Cyan
-Write-Host " | | __ |  |" -ForegroundColor Cyan
-Write-Host " | ||  || |" -ForegroundColor Cyan
-Write-Host "  \______/|_|" -ForegroundColor Cyan
+Write-Host "   $([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2557) $([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2557)" -ForegroundColor Cyan
+Write-Host "  $([char]0x2588)$([char]0x2588)$([char]0x2554)$([char]0x2550)$([char]0x2550)$([char]0x2550)$([char]0x255D)$([char]0x255A)$([char]0x2550)$([char]0x2550)$([char]0x2588)$([char]0x2588)$([char]0x2554)$([char]0x2550)$([char]0x255D) " -ForegroundColor Cyan
+Write-Host "  $([char]0x2588)$([char]0x2588)$([char]0x2551)  $([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2557)  $([char]0x2588)$([char]0x2588)$([char]0x2551)    " -ForegroundColor Cyan
+Write-Host "  $([char]0x2588)$([char]0x2588)$([char]0x2551)   $([char]0x2588)$([char]0x2588)$([char]0x2551)  $([char]0x2588)$([char]0x2588)$([char]0x2551)    " -ForegroundColor Cyan
+Write-Host "  $([char]0x255A)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2554)$([char]0x255D)  $([char]0x2588)$([char]0x2588)$([char]0x2551)    " -ForegroundColor Cyan
+Write-Host "   $([char]0x255A)$([char]0x2550)$([char]0x2550)$([char]0x2550)$([char]0x2550)$([char]0x255D)   $([char]0x255A)$([char]0x2550)$([char]0x255D)    " -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  gt — simple git flow CLI" -ForegroundColor White
-Write-Host "  Built by Pro Cloudify · github.com/procloudify/gt" -ForegroundColor DarkGray
+Write-Host "  gt $([char]0x2014) simple git flow CLI" -ForegroundColor White
+Write-Host "  Built by Pro Cloudify $([char]0x00B7) github.com/procloudify/gt" -ForegroundColor DarkGray
+Write-Host "  Open source $([char]0x00B7) MIT License $([char]0x00B7) Contributions welcome" -ForegroundColor DarkGray
 Write-Host ""
 
 # Detect if this is a fresh install or an update
