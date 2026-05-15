@@ -13,11 +13,12 @@ function Write-Warn($msg) { Write-Host "  ! $msg" -ForegroundColor Yellow }
 function Write-Fail($msg) { Write-Host "  x $msg" -ForegroundColor Red; exit 1 }
 
 Write-Host ""
-Write-Host "    ____  ____  " -ForegroundColor Cyan
-Write-Host "   / ___||  __|" -ForegroundColor Cyan
-Write-Host "  | |  _ | |_  " -ForegroundColor Cyan
-Write-Host "  | |_| ||  _| " -ForegroundColor Cyan
-Write-Host "   \____||_|   " -ForegroundColor Cyan
+Write-Host "   ██████╗ ████████╗" -ForegroundColor Cyan
+Write-Host "  ██╔════╝╚══██╔══╝ " -ForegroundColor Cyan
+Write-Host "  ██║  ███╗  ██║    " -ForegroundColor Cyan
+Write-Host "  ██║   ██║  ██║    " -ForegroundColor Cyan
+Write-Host "  ╚██████╔╝  ██║    " -ForegroundColor Cyan
+Write-Host "   ╚═════╝   ╚═╝    " -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  gt -- simple git flow CLI" -ForegroundColor White
 Write-Host "  Built by Pro Cloudify - github.com/procloudify/gt" -ForegroundColor DarkGray
