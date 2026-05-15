@@ -66,9 +66,8 @@ try {
     Write-Fail "Failed to write gt: $_"
 }
 
-# Create gt.cmd shim so it works from PowerShell, CMD, Windows Terminal
-$shimPath = "$INSTALL\gt.cmd"
-$shimContent = @"
+# Create gt.cmd shim (for CMD)
+$cmdShim = @"
 @echo off
 where bash >nul 2>&1
 if %errorlevel% equ 0 (
@@ -83,7 +82,23 @@ if %errorlevel% equ 0 (
     )
 )
 "@
-$shimContent | Out-File -FilePath $shimPath -Encoding ascii
+$cmdShim | Out-File -FilePath "$INSTALL\gt.cmd" -Encoding ascii
+
+# Create gt.ps1 shim (for PowerShell -- ps1 is preferred over .cmd in PS)
+$ps1Shim = @'
+$bash = (Get-Command bash -ErrorAction SilentlyContinue)?.Source
+if (-not $bash) {
+    $bash = (Get-Command wsl -ErrorAction SilentlyContinue)?.Source
+    if (-not $bash) {
+        Write-Error "gt requires Git Bash or WSL. Install Git for Windows: https://git-scm.com"
+        exit 1
+    }
+    & wsl bash "$PSScriptRoot/gt" @args
+} else {
+    & bash "$PSScriptRoot/gt" @args
+}
+'@
+$ps1Shim | Out-File -FilePath "$INSTALL\gt.ps1" -Encoding utf8
 
 Write-Ok "gt v$remoteVer ready"
 
@@ -94,21 +109,20 @@ if ($userPath -notlike "*$INSTALL*") {
     Write-Ok "Added $INSTALL to your PATH"
 }
 
-# Also update current session PATH so gt works immediately -- no restart needed
-if ($env:PATH -notlike "*$INSTALL*") {
-    $env:PATH = "$INSTALL;$env:PATH"
-}
-
 Write-Host ""
 if ($isUpdate) {
     Write-Ok "gt updated to v$remoteVer!"
 } else {
-    Write-Ok "gt installed! Try it now:"
+    Write-Ok "gt installed successfully!"
     Write-Host ""
+    Write-Host "  Get started:" -ForegroundColor White
     Write-Host "  gt help          show all commands" -ForegroundColor Cyan
     Write-Host "  gt init          init a project" -ForegroundColor Cyan
     Write-Host "  gt push          bump version + push main" -ForegroundColor Cyan
 }
+Write-Host ""
+Write-Host "  NOTE: Restart your terminal (or run the line below) to use gt:" -ForegroundColor Yellow
+Write-Host "  `$env:PATH = `"$INSTALL;`$env:PATH`"" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  To uninstall: gt uninstall" -ForegroundColor DarkGray
 Write-Host ""
