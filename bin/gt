@@ -19,8 +19,20 @@ require_git() {
   git rev-parse --git-dir &>/dev/null || die "Not a git repository."
 }
 
+require_origin() {
+  git remote get-url origin &>/dev/null || die "No remote 'origin' configured. Run: git remote add origin <url>"
+}
+
 current_branch() {
   git rev-parse --abbrev-ref HEAD
+}
+
+is_dirty() {
+  ! git diff --quiet || ! git diff --cached --quiet
+}
+
+has_untracked() {
+  [ -n "$(git ls-files --others --exclude-standard)" ]
 }
 
 ensure_version_file() {
@@ -32,7 +44,11 @@ ensure_version_file() {
 
 read_version() {
   ensure_version_file
-  cat "$VERSION_FILE"
+  local ver; ver=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+  if ! echo "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    die "Invalid version in $VERSION_FILE: '$ver'. Expected format: X.Y.Z"
+  fi
+  echo "$ver"
 }
 
 bump_version() {
@@ -53,7 +69,11 @@ bump_version() {
 
 pick_branch() {
   local branches
-  branches=$(git branch -a --format='%(refname:short)' | sed 's|origin/||' | sort -u | grep -v HEAD)
+  # deduplicate: strip remote prefix, exclude HEAD, sort unique
+  branches=$(git branch -a --format='%(refname:short)' \
+    | sed 's|^origin/||' \
+    | grep -v '^HEAD$' \
+    | sort -u)
   if command -v fzf &>/dev/null; then
     echo "$branches" | fzf --prompt="branch> " --height=10
   else
@@ -61,6 +81,31 @@ pick_branch() {
     printf "Pick number: "; read -r n
     echo "$branches" | sed -n "${n}p"
   fi
+}
+
+safe_switch() {
+  local target="$1"
+  local current; current=$(current_branch)
+  [ "$current" = "$target" ] && return 0
+  if is_dirty || has_untracked; then
+    warn "You have uncommitted changes. Stashing before switching to ${BOLD}$target${RESET}..."
+    git stash push -u -m "gt auto-stash before switching to $target"
+    git checkout "$target" 2>/dev/null || git checkout -b "$target"
+    warn "Changes stashed. Run ${BOLD}git stash pop${RESET} to restore them."
+  else
+    git checkout "$target" 2>/dev/null || git checkout -b "$target"
+  fi
+}
+
+safe_commit() {
+  local msg="$1"
+  git add .
+  if git diff --cached --quiet; then
+    warn "Nothing to commit — working tree clean. Skipping commit."
+    return 1
+  fi
+  git commit -m "$msg"
+  return 0
 }
 
 # ── parse flags ──────────────────────────────────────────────────────────
@@ -98,39 +143,40 @@ parse_flags() {
 
 cmd_push() {
   require_git
+  require_origin
   parse_flags "$@"
 
   local new_ver; new_ver=$(bump_version "$FLAG_TYPE")
-  echo "$new_ver" > "$VERSION_FILE"
 
-  # Commit message: "1.2.3" or "1.2.3 — your message"
   local commit_msg="$new_ver"
   [ -n "$FLAG_MSG" ] && commit_msg="$new_ver — $FLAG_MSG"
 
   info "Version  → ${BOLD}$new_ver${RESET}"
   [ -n "$FLAG_MSG" ] && info "Message  → ${BOLD}$FLAG_MSG${RESET}"
 
-  git checkout main 2>/dev/null || git checkout -b main
-  git add .
-  git commit -m "$commit_msg" --allow-empty
-  git push origin main
-  ok "Pushed main @ $commit_msg"
+  safe_switch main
+  echo "$new_ver" > "$VERSION_FILE"
+  if safe_commit "$commit_msg"; then
+    git push origin main
+    ok "Pushed main @ $commit_msg"
+  else
+    warn "Version file updated to $new_ver but nothing pushed (no changes)."
+  fi
 }
 
 cmd_dev() {
   require_git
+  require_origin
   parse_flags "$@"
 
-  # Commit message: "dev snapshot" or custom message
   local commit_msg="${FLAG_MSG:-dev snapshot}"
-
   info "Message  → ${BOLD}$commit_msg${RESET}"
 
-  git checkout dev 2>/dev/null || git checkout -b dev
-  git add .
-  git commit -m "$commit_msg" --allow-empty
-  git push origin dev
-  ok "Pushed dev: $commit_msg"
+  safe_switch dev
+  if safe_commit "$commit_msg"; then
+    git push origin dev
+    ok "Pushed dev: $commit_msg"
+  fi
 }
 
 cmd_branch() {
@@ -168,8 +214,12 @@ cmd_merge() {
   [ -z "$branch" ] && branch=$(pick_branch)
   [ -z "$branch" ] && die "No branch selected."
   local current; current=$(current_branch)
+  [ "$branch" = "$current" ] && die "Already on '$branch' — nothing to merge."
+  if is_dirty; then
+    die "Uncommitted changes detected. Commit or stash them before merging."
+  fi
   info "Merging ${BOLD}$branch${RESET} → ${BOLD}$current${RESET}"
-  git merge "$branch"
+  git merge --no-ff "$branch" || die "Merge conflict. Resolve conflicts then run: git merge --continue"
   ok "Merged $branch into $current"
 }
 
@@ -210,6 +260,74 @@ cmd_version() {
   ok "Version bumped → ${BOLD}$new_ver${RESET}"
 }
 
+cmd_update() {
+  local self; self=$(command -v gt 2>/dev/null)
+  [ -z "$self" ] && die "Cannot locate gt binary."
+
+  info "Checking for updates..."
+
+  local remote_ver
+  if command -v curl &>/dev/null; then
+    remote_ver=$(curl -fsSL "https://raw.githubusercontent.com/procloudify/gt/main/bin/gt" \
+      | grep '^GT_VERSION=' | head -1 | cut -d'"' -f2)
+  elif command -v wget &>/dev/null; then
+    remote_ver=$(wget -qO- "https://raw.githubusercontent.com/procloudify/gt/main/bin/gt" \
+      | grep '^GT_VERSION=' | head -1 | cut -d'"' -f2)
+  else
+    die "curl or wget is required to update."
+  fi
+
+  [ -z "$remote_ver" ] && die "Could not fetch remote version. Check your internet connection."
+
+  if [ "$remote_ver" = "$GT_VERSION" ]; then
+    ok "Already up to date — ${BOLD}v$GT_VERSION${RESET}"
+    return 0
+  fi
+
+  info "Update available: ${BOLD}v$GT_VERSION${RESET} → ${BOLD}v$remote_ver${RESET}"
+
+  if command -v curl &>/dev/null; then
+    curl -fsSL "https://raw.githubusercontent.com/procloudify/gt/main/bin/gt" -o "$self"
+  else
+    wget -qO "$self" "https://raw.githubusercontent.com/procloudify/gt/main/bin/gt"
+  fi
+  chmod +x "$self"
+
+  ok "Updated to ${BOLD}v$remote_ver${RESET}"
+}
+
+cmd_uninstall() {
+  local self; self=$(command -v gt 2>/dev/null)
+  if [ -z "$self" ]; then
+    die "Cannot locate gt binary. Remove it manually from your PATH."
+  fi
+
+  warn "This will remove: ${BOLD}$self${RESET}"
+  printf "Are you sure? [y/N] "; read -r confirm
+  case "$confirm" in
+    y|Y|yes|YES) ;;
+    *) info "Aborted."; exit 0 ;;
+  esac
+
+  local dir; dir=$(dirname "$self")
+
+  # Remove the binary and any .cmd shim (Windows)
+  rm -f "$self"
+  rm -f "$dir/gt.cmd"
+  ok "gt removed from $dir"
+
+  # If the whole dir is now empty, remove it too
+  if [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ]; then
+    rmdir "$dir"
+    # Also remove the parent ~/.gt if empty (Windows install.ps1 layout)
+    local parent; parent=$(dirname "$dir")
+    [ -d "$parent" ] && [ -z "$(ls -A "$parent")" ] && rmdir "$parent"
+    ok "Removed empty directory $dir"
+  fi
+
+  info "You may also want to remove the PATH entry from your shell rc file."
+}
+
 cmd_init() {
   if git rev-parse --git-dir &>/dev/null; then
     warn "Already a git repo."
@@ -247,6 +365,8 @@ ${BOLD}COMMANDS${RESET}
   ${CYAN}log${RESET}   [n]                              last n commits (default: 10)
   ${CYAN}version${RESET} [major|minor|patch]            bump .version file only
   ${CYAN}init${RESET}                                   init repo + .version + .gitignore
+  ${CYAN}update${RESET}                                 update gt to the latest version
+  ${CYAN}uninstall${RESET}                              remove gt from your system
 
 ${BOLD}EXAMPLES${RESET}
   gt push                          → 1.0.1  (auto patch bump)
@@ -279,9 +399,34 @@ main() {
     status)  cmd_status  "$@" ;;
     log)     cmd_log     "$@" ;;
     version) cmd_version "$@" ;;
-    init)    cmd_init    "$@" ;;
+    init)      cmd_init      "$@" ;;
+    update)    cmd_update    "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
     help|-h|--help) cmd_help ;;
-    *) die "Unknown command '$cmd'. Run: gt help" ;;
+    *)
+      local commands="push dev branch switch pull merge status log version init uninstall help"
+      local best="" best_score=999
+      for c in $commands; do
+        local score=0
+        local a="$cmd" b="$c"
+        local len_a=${#a} len_b=${#b}
+        local max=$(( len_a > len_b ? len_a : len_b ))
+        for (( i=0; i<max; i++ )); do
+          [ "${a:$i:1}" != "${b:$i:1}" ] && score=$(( score + 1 ))
+        done
+        score=$(( score + (len_a > len_b ? len_a - len_b : len_b - len_a) ))
+        if (( score < best_score )); then
+          best_score=$score
+          best="$c"
+        fi
+      done
+      if (( best_score <= 3 )); then
+        echo -e "${RED}✗${RESET} Unknown command '${BOLD}$cmd${RESET}'. Did you mean: ${CYAN}gt $best${RESET}?" >&2
+      else
+        die "Unknown command '$cmd'. Run: gt help"
+      fi
+      exit 1
+      ;;
   esac
 }
 

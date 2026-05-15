@@ -15,15 +15,46 @@ brew tap procloudify/gt
 brew install gt
 ```
 
+**Windows — PowerShell (recommended, no Scoop needed)**
+```powershell
+iwr https://raw.githubusercontent.com/procloudify/gt/main/install.ps1 | iex
+```
+> Requires Git for Windows (includes Git Bash). [Download here](https://git-scm.com/download/win) if you don't have it.
+
 **Windows (Scoop)**
 ```powershell
 scoop bucket add gt https://github.com/procloudify/scoop-gt
 scoop install gt
 ```
 
-**Windows (Git Bash / WSL)**
+---
+
+## Update
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/procloudify/gt/main/install.sh | bash
+gt update
+```
+
+Works on Mac, Linux, and Windows (Git Bash / WSL). Checks the current version and only downloads if there's something newer.
+
+**Windows (Scoop)**
+```powershell
+scoop update gt
+```
+
+---
+
+## Uninstall
+
+```bash
+gt uninstall
+```
+
+Works on Mac, Linux, and Windows (Git Bash / WSL). Confirms before removing.
+
+**Windows (Scoop)**
+```powershell
+scoop uninstall gt
 ```
 
 ---

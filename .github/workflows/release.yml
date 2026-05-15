@@ -21,7 +21,7 @@ jobs:
       - name: Create tarball & zip
         run: |
           tar -czf gt-${{ steps.version.outputs.VERSION }}.tar.gz bin/ install.sh README.md LICENSE
-          zip -r  gt-${{ steps.version.outputs.VERSION }}.zip  bin/ install.sh README.md LICENSE
+          zip -r  gt-${{ steps.version.outputs.VERSION }}.zip  bin/ install.sh install.ps1 uninstall.ps1 README.md LICENSE
 
       - name: Compute SHA256
         id: sha
@@ -46,4 +46,5 @@ jobs:
           files: |
             gt-${{ steps.version.outputs.VERSION }}.tar.gz
             gt-${{ steps.version.outputs.VERSION }}.zip
+            install.ps1
           generate_release_notes: true
