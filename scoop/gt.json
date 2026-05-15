@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "description": "Simple git flow CLI — push, branch, pull, merge in one command",
+  "homepage": "https://github.com/procloudify/gt",
+  "license": "MIT",
+  "url": "https://github.com/procloudify/gt/archive/refs/tags/v1.0.0.zip",
+  "hash": "REPLACE_WITH_SHA256_AFTER_RELEASE",
+  "bin": "bin\\gt",
+  "checkver": {
+    "github": "https://github.com/procloudify/gt"
+  },
+  "autoupdate": {
+    "url": "https://github.com/procloudify/gt/archive/refs/tags/v$version.zip"
+  }
+}

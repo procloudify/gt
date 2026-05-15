@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create tarball & zip
+        run: |
+          tar -czf gt-${{ steps.version.outputs.VERSION }}.tar.gz bin/ install.sh README.md LICENSE
+          zip -r  gt-${{ steps.version.outputs.VERSION }}.zip  bin/ install.sh README.md LICENSE
+
+      - name: Compute SHA256
+        id: sha
+        run: |
+          echo "TAR=$(sha256sum gt-${{ steps.version.outputs.VERSION }}.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "ZIP=$(sha256sum gt-${{ steps.version.outputs.VERSION }}.zip  | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew formula
+        run: |
+          sed -i "s|REPLACE_WITH_SHA256_AFTER_RELEASE|${{ steps.sha.outputs.TAR }}|" formula/gt.rb
+          sed -i "s|v1.0.0|${{ github.ref_name }}|g" formula/gt.rb
+
+      - name: Update Scoop manifest
+        run: |
+          sed -i 's/"version": ".*"/"version": "${{ steps.version.outputs.VERSION }}"/' scoop/gt.json
+          sed -i "s|REPLACE_WITH_SHA256_AFTER_RELEASE|${{ steps.sha.outputs.ZIP }}|" scoop/gt.json
+          sed -i "s|v1.0.0|${{ github.ref_name }}|g" scoop/gt.json
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            gt-${{ steps.version.outputs.VERSION }}.tar.gz
+            gt-${{ steps.version.outputs.VERSION }}.zip
+          generate_release_notes: true
