@@ -297,35 +297,58 @@ cmd_update() {
 }
 
 cmd_uninstall() {
-  local self; self=$(command -v gt 2>/dev/null)
-  if [ -z "$self" ]; then
-    die "Cannot locate gt binary. Remove it manually from your PATH."
-  fi
-
-  warn "This will remove: ${BOLD}$self${RESET}"
+  warn "This will remove gt from your system."
   printf "Are you sure? [y/N] "; read -r confirm
   case "$confirm" in
     y|Y|yes|YES) ;;
     *) info "Aborted."; exit 0 ;;
   esac
 
-  local dir; dir=$(dirname "$self")
+  local removed=0
 
-  # Remove the binary and any .cmd shim (Windows)
-  rm -f "$self"
-  rm -f "$dir/gt.cmd"
-  ok "gt removed from $dir"
-
-  # If the whole dir is now empty, remove it too
-  if [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ]; then
-    rmdir "$dir"
-    # Also remove the parent ~/.gt if empty (Windows install.ps1 layout)
-    local parent; parent=$(dirname "$dir")
-    [ -d "$parent" ] && [ -z "$(ls -A "$parent")" ] && rmdir "$parent"
-    ok "Removed empty directory $dir"
+  # ── Windows (Git Bash / WSL): remove ~/.gt/bin ──────────────────────────
+  local win_install=""
+  if [ -n "${USERPROFILE:-}" ]; then
+    # Git Bash exposes USERPROFILE as a Windows path — convert to Unix path
+    win_install=$(cygpath -u "$USERPROFILE" 2>/dev/null || echo "$USERPROFILE" | sed 's|\\|/|g' | sed 's|^\([A-Za-z]\):|/\L\1|')
+    win_install="$win_install/.gt/bin"
+  elif [ -n "${HOME:-}" ] && [ -d "$HOME/.gt/bin" ]; then
+    win_install="$HOME/.gt/bin"
   fi
 
-  info "You may also want to remove the PATH entry from your shell rc file."
+  if [ -n "$win_install" ] && [ -d "$win_install" ]; then
+    rm -f "$win_install/gt" "$win_install/gt.cmd"
+    ok "Removed gt from $win_install"
+    removed=1
+    # Remove parent ~/.gt if empty
+    local gt_dir; gt_dir=$(dirname "$win_install")
+    [ -d "$gt_dir" ] && [ -z "$(ls -A "$gt_dir")" ] && rmdir "$gt_dir"
+    # Clean Windows user PATH via PowerShell
+    if command -v powershell.exe &>/dev/null; then
+      powershell.exe -NoProfile -Command "
+        \$p = [Environment]::GetEnvironmentVariable('PATH','User') -split ';' | Where-Object { \$_ -notmatch '\\.gt\\\\bin' }
+        [Environment]::SetEnvironmentVariable('PATH', (\$p -join ';'), 'User')
+      " 2>/dev/null && ok "Removed from Windows PATH"
+    fi
+  fi
+
+  # ── Mac / Linux: remove from ~/.local/bin or /usr/local/bin ────────────
+  local self; self=$(command -v gt 2>/dev/null)
+  if [ -n "$self" ] && [ -f "$self" ]; then
+    local dir; dir=$(dirname "$self")
+    rm -f "$self"
+    ok "Removed gt from $dir"
+    removed=1
+    [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ] && rmdir "$dir"
+    # Clean shell rc PATH entries
+    for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.config/fish/config.fish"; do
+      [ -f "$rc" ] && sed -i "/\.local\/bin/d" "$rc" 2>/dev/null || true
+    done
+    info "You may want to open a new terminal to apply PATH changes."
+  fi
+
+  [ "$removed" -eq 0 ] && die "gt not found. May already be uninstalled."
+  ok "gt uninstalled."
 }
 
 cmd_init() {
