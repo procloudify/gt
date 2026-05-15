@@ -7,35 +7,32 @@ $REPO    = "https://raw.githubusercontent.com/procloudify/gt/main"
 $BIN     = "gt"
 $INSTALL = "$env:USERPROFILE\.gt\bin"
 
-function Write-Ok($msg)   { Write-Host "  $([char]0x2713) $msg" -ForegroundColor Green }
-function Write-Info($msg) { Write-Host "  $([char]0x2192) $msg" -ForegroundColor Cyan }
+function Write-Ok($msg)   { Write-Host "  + $msg" -ForegroundColor Green }
+function Write-Info($msg) { Write-Host "  > $msg" -ForegroundColor Cyan }
 function Write-Warn($msg) { Write-Host "  ! $msg" -ForegroundColor Yellow }
-function Write-Fail($msg) { Write-Host "  $([char]0x2717) $msg" -ForegroundColor Red; exit 1 }
-
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+function Write-Fail($msg) { Write-Host "  x $msg" -ForegroundColor Red; exit 1 }
 
 Write-Host ""
-Write-Host "   $([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2557) $([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2557)" -ForegroundColor Cyan
-Write-Host "  $([char]0x2588)$([char]0x2588)$([char]0x2554)$([char]0x2550)$([char]0x2550)$([char]0x2550)$([char]0x255D)$([char]0x255A)$([char]0x2550)$([char]0x2550)$([char]0x2588)$([char]0x2588)$([char]0x2554)$([char]0x2550)$([char]0x255D) " -ForegroundColor Cyan
-Write-Host "  $([char]0x2588)$([char]0x2588)$([char]0x2551)  $([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2557)  $([char]0x2588)$([char]0x2588)$([char]0x2551)    " -ForegroundColor Cyan
-Write-Host "  $([char]0x2588)$([char]0x2588)$([char]0x2551)   $([char]0x2588)$([char]0x2588)$([char]0x2551)  $([char]0x2588)$([char]0x2588)$([char]0x2551)    " -ForegroundColor Cyan
-Write-Host "  $([char]0x255A)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2588)$([char]0x2554)$([char]0x255D)  $([char]0x2588)$([char]0x2588)$([char]0x2551)    " -ForegroundColor Cyan
-Write-Host "   $([char]0x255A)$([char]0x2550)$([char]0x2550)$([char]0x2550)$([char]0x2550)$([char]0x255D)   $([char]0x255A)$([char]0x2550)$([char]0x255D)    " -ForegroundColor Cyan
+Write-Host "    ____  ____  " -ForegroundColor Cyan
+Write-Host "   / ___||  __|" -ForegroundColor Cyan
+Write-Host "  | |  _ | |_  " -ForegroundColor Cyan
+Write-Host "  | |_| ||  _| " -ForegroundColor Cyan
+Write-Host "   \____||_|   " -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  gt $([char]0x2014) simple git flow CLI" -ForegroundColor White
-Write-Host "  Built by Pro Cloudify $([char]0x00B7) github.com/procloudify/gt" -ForegroundColor DarkGray
-Write-Host "  Open source $([char]0x00B7) MIT License $([char]0x00B7) Contributions welcome" -ForegroundColor DarkGray
+Write-Host "  gt -- simple git flow CLI" -ForegroundColor White
+Write-Host "  Built by Pro Cloudify - github.com/procloudify/gt" -ForegroundColor DarkGray
+Write-Host "  Open source - MIT License - Contributions welcome" -ForegroundColor DarkGray
 Write-Host ""
 
 # Detect if this is a fresh install or an update
 $isUpdate = Test-Path "$INSTALL\gt"
 if ($isUpdate) {
-    Write-Info "Existing install found — checking for updates..."
+    Write-Info "Existing install found -- checking for updates..."
 } else {
     Write-Info "Installing to $INSTALL"
 }
 
-# Fetch remote version number before downloading
+# Fetch remote script
 try {
     $remoteScript = Invoke-WebRequest -Uri "$REPO/bin/gt" -UseBasicParsing
     $remoteVer = ($remoteScript.Content -split "`n" | Where-Object { $_ -match '^GT_VERSION=' } | Select-Object -First 1) -replace 'GT_VERSION=|"',''
@@ -47,7 +44,7 @@ try {
 if ($isUpdate) {
     $currentVer = (Get-Content "$INSTALL\gt" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^GT_VERSION=' } | Select-Object -First 1) -replace 'GT_VERSION=|"',''
     if ($currentVer -eq $remoteVer -and $currentVer -ne "") {
-        Write-Ok "Already up to date — v$currentVer"
+        Write-Ok "Already up to date -- v$currentVer"
         Write-Host ""
         exit 0
     }
@@ -61,14 +58,14 @@ if (-not (Test-Path $INSTALL)) {
     New-Item -ItemType Directory -Path $INSTALL -Force | Out-Null
 }
 
-# Write the downloaded script to disk
+# Write gt script to disk
 try {
     [System.IO.File]::WriteAllText("$INSTALL\gt", $remoteScript.Content)
 } catch {
     Write-Fail "Failed to write gt: $_"
 }
 
-# Create a gt.cmd shim so it works from any terminal (cmd, PowerShell, Windows Terminal)
+# Create gt.cmd shim so it works from PowerShell, CMD, Windows Terminal
 $shimPath = "$INSTALL\gt.cmd"
 $shimContent = @"
 @echo off
@@ -89,23 +86,24 @@ $shimContent | Out-File -FilePath $shimPath -Encoding ascii
 
 Write-Ok "gt v$remoteVer ready"
 
-# Add to user PATH if not already there
+# Add to user PATH (persists across terminals)
 $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
 if ($userPath -notlike "*$INSTALL*") {
     [Environment]::SetEnvironmentVariable("PATH", "$INSTALL;$userPath", "User")
     Write-Ok "Added $INSTALL to your PATH"
-    Write-Warn "Restart your terminal (or open a new one) to use gt"
-} else {
-    Write-Ok "$INSTALL already in PATH"
+}
+
+# Also update current session PATH so gt works immediately -- no restart needed
+if ($env:PATH -notlike "*$INSTALL*") {
+    $env:PATH = "$INSTALL;$env:PATH"
 }
 
 Write-Host ""
 if ($isUpdate) {
     Write-Ok "gt updated to v$remoteVer!"
 } else {
-    Write-Ok "gt installed successfully!"
+    Write-Ok "gt installed! Try it now:"
     Write-Host ""
-    Write-Host "  Get started:" -ForegroundColor White
     Write-Host "  gt help          show all commands" -ForegroundColor Cyan
     Write-Host "  gt init          init a project" -ForegroundColor Cyan
     Write-Host "  gt push          bump version + push main" -ForegroundColor Cyan
